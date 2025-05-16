@@ -1,7 +1,8 @@
-from ninja import Schema
+from ninja import Schema, ModelSchema
 from datetime import date
 from typing import List, Literal
 from pydantic import field_validator, constr
+from job.models import Job
 
 
 class SalaryRange(Schema):
@@ -63,3 +64,9 @@ class JobCreationRequest(Schema):
         if any(not skill.strip() for skill in v):
             raise ValueError('Skills cannot be empty strings')
         return v
+
+
+class JobCreationResponse(ModelSchema):
+    class Config:
+        model = Job
+        model_fields = "__all__"
