@@ -12,7 +12,7 @@ redis_client = redis.Redis(
     decode_responses=True,
     socket_timeout=5,
     retry_on_timeout=True,
-    ssl=settings.REDIS_SSL if hasattr(settings, 'REDIS_SSL') else False  # 可選：SSL 支援
+    ssl=settings.REDIS_SSL if hasattr(settings, 'REDIS_SSL') else False
 )
 
 
@@ -115,7 +115,7 @@ class RedisThrottle(BaseThrottle):
 
         except redis.RedisError as e:
             # Log the error here if you have logging configured
-            print(f"Redis error: {e}")  # 在生產環境中應該使用proper logging
+            print(f"Redis error: {e}")
             # In case of Redis errors, we'll allow the request to prevent blocking users
             return True
 
