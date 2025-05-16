@@ -25,14 +25,6 @@ jobs:
       run: |
         docker compose up -d --build
 
-    - name: Print running Docker containers multiple times
-      run: |
-        for i in {1..3}; do
-          echo "Printing Docker container list for the $i time:"
-          docker ps
-          sleep 2 # Wait for 2 seconds after each print
-        done
-
     - name: Check logs of the backend app
       run: |
         docker logs job-platform-demo-backend-app-1
