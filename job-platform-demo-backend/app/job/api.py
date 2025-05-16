@@ -3,7 +3,7 @@ from django.db import transaction, IntegrityError
 from ninja import Router
 from ninja.responses import Response
 from ninja.errors import HttpError
-from http import HTTPStatus
+from datetime import date
 
 from job.schemas import JobCreationRequest, JobCreationResponse
 from job.models import Job
@@ -33,6 +33,9 @@ def create_job(request: HttpRequest, payload: JobCreationRequest) -> Response:
     """
     try:
         with transaction.atomic():
+            today = date.today()
+            status = 'scheduled' if payload.posting_date > today else 'active'
+
             job = Job(
                 title=payload.title,
                 description=payload.description,
@@ -42,7 +45,7 @@ def create_job(request: HttpRequest, payload: JobCreationRequest) -> Response:
                 posting_date=payload.posting_date,
                 expiration_date=payload.expiration_date,
                 required_skills=payload.required_skills,
-                status=payload.status
+                status=status
             )
             job.save()
 

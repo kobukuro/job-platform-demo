@@ -21,15 +21,6 @@ class JobCreationRequest(Schema):
     posting_date: date
     expiration_date: date
     required_skills: List[constr(max_length=100)]
-    status: str = 'active'
-
-    @field_validator('status')
-    @classmethod
-    def validate_status(cls, v):
-        valid_status = ['active', 'expired', 'scheduled']
-        if v not in valid_status:
-            raise ValueError(f'Status must be one of {valid_status}')
-        return v
 
     @field_validator('posting_date')
     @classmethod
