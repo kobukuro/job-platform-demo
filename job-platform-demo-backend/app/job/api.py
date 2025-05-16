@@ -7,11 +7,12 @@ from datetime import date
 
 from job.schemas import JobCreationRequest, JobCreationResponse
 from job.models import Job
+from core.throttling.redis import RedisThrottle
 
 router = Router()
 
 
-@router.post("", response={201: JobCreationResponse})
+@router.post("", response={201: JobCreationResponse}, throttle=[RedisThrottle("10/second")])
 def create_job(request: HttpRequest, payload: JobCreationRequest) -> Response:
     """
     Create a new job listing with atomicity guarantee.
