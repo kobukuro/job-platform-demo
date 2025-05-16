@@ -30,3 +30,25 @@ class Job(models.Model):
 
     class Meta:
         ordering = ['-posting_date']
+        indexes = [
+            # Indexes for search functionality
+            models.Index(fields=['title']),
+            models.Index(fields=['company_name']),
+
+            # Index for status filtering
+            models.Index(fields=['status']),
+
+            # Indexes for date sorting and filtering
+            models.Index(fields=['posting_date']),
+            models.Index(fields=['expiration_date']),
+
+            # Index for location filtering
+            models.Index(fields=['location']),
+
+            # Composite indexes: status + dates, for common filter+sort combinations
+            models.Index(fields=['status', 'posting_date']),
+            models.Index(fields=['status', 'expiration_date']),
+
+            # Full-text search index
+            models.Index(fields=['description'], name='description_idx'),
+        ]
