@@ -31,6 +31,14 @@ class JobCreationRequest(Schema):
             raise ValueError(f'Status must be one of {valid_status}')
         return v
 
+    @field_validator('posting_date')
+    @classmethod
+    def validate_posting_date(cls, v):
+        today = date.today()
+        if v < today:
+            raise ValueError('Posting date cannot be earlier than today')
+        return v
+
     @field_validator('expiration_date')
     @classmethod
     def validate_expiration_date(cls, v, info):
