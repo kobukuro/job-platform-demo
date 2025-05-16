@@ -1,0 +1,26 @@
+name: Backend CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/backend-ci.yml'
+      - 'job-platform-demo-backend/**'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13.0'
+
+    - name: Start services with docker-compose
+      run: |
+        docker compose up -d --build
+
+    - name: Run Tests
+      run: |
+        docker compose run --rm app sh -c "pytest"
