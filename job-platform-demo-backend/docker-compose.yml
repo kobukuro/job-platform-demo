@@ -22,6 +22,7 @@ services:
       - REDIS_PASSWORD=your_redis_password
     depends_on:
       - db
+      - redis
 
   db:
     image: postgres:17-alpine

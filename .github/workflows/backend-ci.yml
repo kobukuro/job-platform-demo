@@ -25,10 +25,6 @@ jobs:
       run: |
         docker compose up -d --build
 
-    - name: Check logs of the backend app
-      run: |
-        docker logs job-platform-demo-backend-app-1
-
     - name: Run Tests
       run: |
         docker compose run --rm app sh -c "pytest"
