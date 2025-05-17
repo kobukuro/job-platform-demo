@@ -21,14 +21,18 @@ jobs:
       with:
         python-version: '3.13.0'
 
+    - name: Create test results directory
+      run: mkdir -p app/test-results
+
+    - name: Set directory permissions
+      run: chmod -R 777 app/test-results
+
     - name: Start services with docker-compose
       run: |
         docker compose up -d --build
 
     - name: Run Tests
       run: |
-        docker compose exec -T app mkdir -p /app/test-results
-        docker compose exec -T app chmod 777 /app/test-results
         docker compose run --rm app sh -c "python manage.py wait_for_db && pytest --junitxml=test-results/junit.xml"
 
     - name: Upload Test Results
