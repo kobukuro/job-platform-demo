@@ -37,3 +37,32 @@ def create_company(request: HttpRequest, payload: CompanyCreationRequest) -> Res
         raise HttpError(409, "Company with this name already exists")
     except Exception as e:
         raise HttpError(500, "Internal server error")
+
+@router.delete("/{company_id}", response={204: None})
+def delete_company(request: HttpRequest, company_id: int) -> Response:
+    """
+    Delete an existing company by ID.
+
+    Args:
+        request: The HTTP request object
+        company_id: The ID of the company to delete
+
+    Returns:
+        Response with status code 204 on success
+
+    Raises:
+        HttpError:
+            - 404 if company not found
+            - 500 for server-side errors
+    """
+    try:
+        with transaction.atomic():
+            company = Company.objects.get(id=company_id)
+            company.delete()
+        return Response(None, status=204)
+
+    except Company.DoesNotExist:
+        raise HttpError(404, "Company not found")
+    except Exception as e:
+        raise HttpError(500, "Internal server error")
+

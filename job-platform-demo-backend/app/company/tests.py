@@ -70,3 +70,27 @@ class TestCompanyCreationAPI:
         )
 
         assert response.status_code == 422  # Validation error
+
+
+@pytest.mark.django_db
+class TestCompanyDeletionAPI:
+    def test_delete_company_success(self, client):
+        """Test successful company deletion"""
+        # Create a company to delete
+        company = Company.objects.create(name="Company To Delete")
+
+        response = client.delete(f"{COMPANIES_ENDPOINT}/{company.id}")
+
+        assert response.status_code == 204
+
+        # Verify company was deleted from database
+        with pytest.raises(Company.DoesNotExist):
+            Company.objects.get(id=company.id)
+
+    def test_delete_company_not_found(self, client):
+        """Test deleting non-existent company"""
+        non_existent_id = 99999
+
+        response = client.delete(f"{COMPANIES_ENDPOINT}/{non_existent_id}")
+
+        assert response.status_code == 404
