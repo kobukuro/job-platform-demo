@@ -1,11 +1,13 @@
 from django.http.request import HttpRequest
 from django.db import transaction, IntegrityError
-from ninja import Router
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from ninja import Router, Query
 from ninja.responses import Response
 from ninja.errors import HttpError
 from datetime import date
+from typing import List, Optional
 
-from job.schemas import JobCreationRequest, JobCreationResponse
+from job.schemas import JobCreationRequest, JobCreationResponse, JobListResponse
 from job.models import Job
 from core.throttling.redis import RedisThrottle
 
@@ -64,3 +66,126 @@ def create_job(request: HttpRequest, payload: JobCreationRequest) -> Response:
         # Handle unexpected errors
         # In production, you should log the error but not expose its details
         raise HttpError(500, "Internal server error")
+
+
+@router.get("", response=JobListResponse)
+def list_jobs(
+        request: HttpRequest,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+        company_name: Optional[str] = None,
+        location: Optional[str] = None,
+        status: Optional[str] = None,
+        required_skills: Optional[List[str]] = Query(None),
+        salary_type: Optional[str] = None,
+        salary_currency: Optional[str] = None,
+        min_salary: Optional[int] = None,
+        max_salary: Optional[int] = None,
+        posting_date_start: Optional[date] = None,
+        posting_date_end: Optional[date] = None,
+        expiration_date_start: Optional[date] = None,
+        expiration_date_end: Optional[date] = None,
+        order_by: Optional[str] = None,  # 'posting_date' or 'expiration_date'
+        order_direction: Optional[str] = 'asc',  # 'asc' or 'desc'
+        page: int = 1,
+        page_size: int = 10
+) -> Response:
+    """
+    Retrieve a list of job postings with comprehensive search, filter and sorting options.
+
+    Args:
+        request: The HTTP request object
+        title: Filter by job title (partial match)
+        description: Filter by job description (partial match)
+        company_name: Filter by company name (partial match)
+        location: Filter by job location (partial match)
+        status: Filter by job status (active/expired/scheduled)
+        required_skills: Filter by required skills
+        salary_type: Filter by salary type (annually/monthly)
+        salary_currency: Filter by salary currency
+        min_salary: Filter by minimum salary
+        max_salary: Filter by maximum salary
+        posting_date_start: Filter by posting date (start range)
+        posting_date_end: Filter by posting date (end range)
+        expiration_date_start: Filter by expiration date (start range)
+        expiration_date_end: Filter by expiration date (end range)
+        order_by: Field to sort by (posting_date/expiration_date)
+        order_direction: Sort direction (asc/desc)
+        page: Page number for pagination
+        page_size: Number of items per page
+
+    Returns:
+        JobListResponse containing paginated job listings and metadata
+    """
+    queryset = Job.objects.all()
+
+    # Search filters
+    if title:
+        queryset = queryset.filter(title__icontains=title)
+    if description:
+        queryset = queryset.filter(description__icontains=description)
+    if company_name:
+        queryset = queryset.filter(company_name__icontains=company_name)
+    if location:
+        queryset = queryset.filter(location=location)
+    if status:
+        queryset = queryset.filter(status=status)
+    if required_skills:
+        for skill in required_skills:
+            queryset = queryset.filter(required_skills__contains=[skill])
+
+    # Salary range filters
+    if any([min_salary, max_salary]):
+        if not salary_type or not salary_currency:
+            raise HttpError(
+                400,
+                "Salary type and currency are required for salary range filtering"
+            )
+        salary_filter = {
+            'salary_range__type': salary_type,
+            'salary_range__currency': salary_currency
+        }
+
+        if min_salary is not None:
+            salary_filter['salary_range__max__gte'] = min_salary
+
+        if max_salary is not None:
+            salary_filter['salary_range__min__lte'] = max_salary
+
+        queryset = queryset.filter(**salary_filter)
+
+    # Date range filters
+    if posting_date_start:
+        queryset = queryset.filter(posting_date__gte=posting_date_start)
+    if posting_date_end:
+        queryset = queryset.filter(posting_date__lte=posting_date_end)
+    if expiration_date_start:
+        queryset = queryset.filter(expiration_date__gte=expiration_date_start)
+    if expiration_date_end:
+        queryset = queryset.filter(expiration_date__lte=expiration_date_end)
+
+    # Ordering
+    if order_by:
+        order_field = order_by
+        if order_direction == 'desc':
+            order_field = f'-{order_field}'
+        queryset = queryset.order_by(order_field)
+
+    paginator = Paginator(queryset, page_size)
+
+    try:
+        paginated_jobs = paginator.page(page)
+    except PageNotAnInteger:
+        # If page is not an integer, deliver first page.
+        paginated_jobs = paginator.page(1)
+    except EmptyPage:
+        # If page is out of range (e.g. 9999), deliver last page of results.
+        paginated_jobs = paginator.page(paginator.num_pages)
+
+    return JobListResponse(
+        data=[JobCreationResponse.from_orm(job) for job in paginated_jobs],
+        current_page=page,
+        page_size=page_size,
+        total_pages=paginator.num_pages,
+        total_count=paginator.count
+    )

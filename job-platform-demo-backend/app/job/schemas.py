@@ -69,3 +69,11 @@ class JobCreationResponse(ModelSchema):
     class Config:
         model = Job
         model_fields = "__all__"
+
+
+class JobListResponse(Schema):
+    data: List[JobCreationResponse]
+    current_page: int
+    page_size: int
+    total_pages: int
+    total_count: int
