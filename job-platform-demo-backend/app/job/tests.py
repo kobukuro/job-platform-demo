@@ -464,8 +464,6 @@ class TestJobDeletionAPI:
 
     def test_delete_job_success(self, client, test_job):
         """Test successful deletion of a job by ID"""
-        print(111, test_job.id)
-        print(Job.objects.filter(id=test_job.id).exists())
         response = client.delete(f"{JOBS_ENDPOINT}/{test_job.id}")
 
         assert response.status_code == 204
