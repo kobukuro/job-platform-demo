@@ -442,6 +442,175 @@ class TestJobDetailAPI:
 
 
 @pytest.mark.django_db
+class TestJobUpdateAPI:
+    @pytest.fixture
+    def test_job(self):
+        """Create a test job for testing"""
+        return Job.objects.create(
+            title="Software Engineer",
+            description="Python developer position",
+            location="Taipei",
+            salary_range={
+                "type": "annually",
+                "currency": "TWD",
+                "min": 800000,
+                "max": 1500000
+            },
+            company_name="Tech Company",
+            posting_date=date.today(),
+            expiration_date=date.today() + timedelta(days=30),
+            required_skills=["Python", "Django", "React"],
+            status="active"
+        )
+
+    def test_update_job_success(self, client, test_job):
+        """Test successful update of a job"""
+        tomorrow = date.today() + timedelta(days=1)
+        next_month = date.today() + timedelta(days=30)
+
+        payload = {
+            "title": "Senior Software Engineer",  # Changed title
+            "description": "Updated position description",  # Changed description
+            "location": "Taipei",
+            "salary_range": {
+                "type": "annually",
+                "currency": "TWD",
+                "min": "900000",  # Changed salary
+                "max": "1600000"
+            },
+            "company_name": "Tech Company",  # Same company name
+            "posting_date": tomorrow.isoformat(),
+            "expiration_date": next_month.isoformat(),
+            "required_skills": ["Python", "Django", "React", "AWS"]  # Added skill
+        }
+
+        response = client.put(
+            f"{JOBS_ENDPOINT}/{test_job.id}",
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["title"] == payload["title"]
+        assert data["description"] == payload["description"]
+        assert data["required_skills"] == payload["required_skills"]
+        assert data["status"] == "scheduled"  # Should be scheduled as posting_date is tomorrow
+
+    def test_update_job_company_name_change(self, client, test_job):
+        """Test attempt to change company name"""
+        payload = {
+            "title": test_job.title,
+            "description": test_job.description,
+            "location": test_job.location,
+            "salary_range": test_job.salary_range,
+            "company_name": "Different Company",  # Attempting to change company name
+            "posting_date": test_job.posting_date.isoformat(),
+            "expiration_date": test_job.expiration_date.isoformat(),
+            "required_skills": test_job.required_skills
+        }
+
+        response = client.put(
+            f"{JOBS_ENDPOINT}/{test_job.id}",
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+
+        assert response.status_code == 400
+
+    def test_update_job_not_found(self, client):
+        """Test update of non-existent job"""
+        payload = {
+            "title": "Test Job",
+            "description": "Test Description",
+            "location": "Taipei",
+            "salary_range": {
+                "type": "annually",
+                "currency": "TWD",
+                "min": "800000",
+                "max": "1500000"
+            },
+            "company_name": "Tech Company",
+            "posting_date": date.today().isoformat(),
+            "expiration_date": (date.today() + timedelta(days=30)).isoformat(),
+            "required_skills": ["Python"]
+        }
+
+        response = client.put(
+            f"{JOBS_ENDPOINT}/99999",
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+
+        assert response.status_code == 404
+
+    def test_update_job_invalid_dates(self, client, test_job):
+        """Test update with invalid dates"""
+        today = date.today()
+        yesterday = today - timedelta(days=1)
+
+        payload = {
+            "title": test_job.title,
+            "description": test_job.description,
+            "location": test_job.location,
+            "salary_range": test_job.salary_range,
+            "company_name": test_job.company_name,
+            "posting_date": today.isoformat(),
+            "expiration_date": yesterday.isoformat(),  # Invalid: expiration before posting
+            "required_skills": test_job.required_skills
+        }
+
+        response = client.put(
+            f"{JOBS_ENDPOINT}/{test_job.id}",
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+
+        assert response.status_code == 422
+
+    def test_update_job_missing_required_fields(self, client, test_job):
+        """Test update with missing required fields"""
+        payload = {
+            "title": "Updated Title"
+            # Missing other required fields
+        }
+
+        response = client.put(
+            f"{JOBS_ENDPOINT}/{test_job.id}",
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+
+        assert response.status_code == 422
+
+    def test_rate_limiting(self, client, test_job):
+        """Test API rate limiting"""
+        payload = {
+            "title": test_job.title,
+            "description": test_job.description,
+            "location": test_job.location,
+            "salary_range": test_job.salary_range,
+            "company_name": test_job.company_name,
+            "posting_date": test_job.posting_date.isoformat(),
+            "expiration_date": test_job.expiration_date.isoformat(),
+            "required_skills": test_job.required_skills
+        }
+
+        # Send 11 requests (exceeding the 10/second limit)
+        responses = []
+        for _ in range(11):
+            response = client.put(
+                f"{JOBS_ENDPOINT}/{test_job.id}",
+                data=json.dumps(payload),
+                content_type="application/json"
+            )
+            responses.append(response)
+
+        # Verify that at least one request was rate limited
+        assert any(r.status_code == 429 for r in responses)
+
+
+@pytest.mark.django_db
 class TestJobDeletionAPI:
     @pytest.fixture
     def test_job(self):

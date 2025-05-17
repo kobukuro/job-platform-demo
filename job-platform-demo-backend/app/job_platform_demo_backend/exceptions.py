@@ -1,0 +1,2 @@
+class JobUpdateError(Exception):
+    pass
