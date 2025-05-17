@@ -12,7 +12,7 @@ from job.models import Job
 from core.throttling.redis import RedisThrottle
 from job_platform_demo_backend.exceptions import JobUpdateError
 
-router = Router()
+router = Router(tags=['Job'])
 
 
 @router.post("", response={201: JobCreationResponse}, throttle=[RedisThrottle("10/second")])
