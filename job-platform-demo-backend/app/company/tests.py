@@ -43,7 +43,7 @@ class TestCompanyCreationAPI:
             content_type="application/json"
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 409
 
     def test_create_company_empty_name(self, client):
         """Test creating company with empty name"""
