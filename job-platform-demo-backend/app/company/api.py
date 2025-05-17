@@ -34,6 +34,6 @@ def create_company(request: HttpRequest, payload: CompanyCreationRequest) -> Res
         return Response(CompanyCreationResponse.from_orm(company).dict(), status=201)
 
     except IntegrityError as e:
-        raise HttpError(400, f"Invalid data: {str(e)}")
+        raise HttpError(409, "Company with this name already exists")
     except Exception as e:
         raise HttpError(500, "Internal server error")
