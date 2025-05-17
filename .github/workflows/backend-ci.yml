@@ -25,12 +25,12 @@ jobs:
       run: |
         docker compose up -d --build
 
+    - name: Create test results directory
+      run: mkdir -p test-results
+
     - name: Run Tests
       run: |
         docker compose run --rm app sh -c "python manage.py wait_for_db && pytest"
-
-    - name: Create test results directory
-      run: mkdir -p test-results
 
     - name: Upload Test Results
       if: always()
