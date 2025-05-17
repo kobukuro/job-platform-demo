@@ -117,9 +117,9 @@ class TestJobCreationAPI:
             "required_skills": ["Python", "Django", "REST API"]
         }
 
-        # Send 11 requests (exceeding the 10/second limit)
+        # Send 20 requests (exceeding the 10/second limit)
         responses = []
-        for _ in range(11):
+        for _ in range(20):
             response = client.post(
                 JOBS_ENDPOINT,
                 data=json.dumps(payload),
@@ -596,9 +596,9 @@ class TestJobUpdateAPI:
             "required_skills": test_job.required_skills
         }
 
-        # Send 11 requests (exceeding the 10/second limit)
+        # Send 20 requests (exceeding the 10/second limit)
         responses = []
-        for _ in range(11):
+        for _ in range(20):
             response = client.put(
                 f"{JOBS_ENDPOINT}/{test_job.id}",
                 data=json.dumps(payload),
