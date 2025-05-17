@@ -27,6 +27,8 @@ jobs:
 
     - name: Run Tests
       run: |
+        docker compose exec -T app mkdir -p /app/test-results
+        docker compose exec -T app chmod 777 /app/test-results
         docker compose run --rm app sh -c "python manage.py wait_for_db && pytest --junitxml=test-results/junit.xml"
 
     - name: Upload Test Results
