@@ -29,6 +29,9 @@ jobs:
       run: |
         docker compose run --rm app sh -c "python manage.py wait_for_db && pytest"
 
+    - name: Create test results directory
+      run: mkdir -p test-results
+
     - name: Upload Test Results
       if: always()
       uses: actions/upload-artifact@v4
