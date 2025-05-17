@@ -10,6 +10,7 @@ from typing import List, Optional
 from job.schemas import JobCreationRequest, JobCreationResponse, JobListResponse
 from job.models import Job
 from core.throttling.redis import RedisThrottle
+from job_platform_demo_backend.exceptions import JobUpdateError
 
 router = Router()
 
@@ -218,6 +219,66 @@ def get_job(request: HttpRequest, job_id: int) -> Response:
     except Exception as e:
         # Handle unexpected errors
         # In production, you should log the error but not expose its details
+        raise HttpError(500, "Internal server error")
+
+
+@router.put("/{job_id}", response=JobCreationResponse, throttle=[RedisThrottle("10/second")])
+def update_job(request: HttpRequest, job_id: int, payload: JobCreationRequest) -> Response:
+    """
+    Update an existing job posting with atomicity guarantee.
+    Company name cannot be changed.
+
+    Args:
+        request: The HTTP request object
+        job_id: The unique identifier of the job posting
+        payload: Validated job update data
+
+    Returns:
+        JobCreationResponse containing the updated job posting details
+
+    Raises:
+        HttpError:
+            - 400 for client-side errors (invalid data or validation errors)
+            - 404 if job posting is not found
+            - 500 for server-side errors
+    """
+    try:
+        with transaction.atomic():
+            job = Job.objects.get(id=job_id)
+            # Prevent company name changes
+            if payload.company_name != job.company_name:
+                raise JobUpdateError("Company name cannot be changed")
+
+            today = date.today()
+            status = 'scheduled' if payload.posting_date > today else 'active'
+
+            # Update job fields
+            job.title = payload.title
+            job.description = payload.description
+            job.location = payload.location
+            job.salary_range = payload.salary_range.dict()
+            job.posting_date = payload.posting_date
+            job.expiration_date = payload.expiration_date
+            job.required_skills = payload.required_skills
+            job.status = status
+
+            job.save()
+
+        return Response(JobCreationResponse.from_orm(job).dict())
+
+    except Job.DoesNotExist:
+        raise HttpError(404, f"Job posting with ID {job_id} not found")
+
+    except IntegrityError as e:
+        raise HttpError(400, f"Invalid data: {str(e)}")
+
+    except ValueError as e:
+        raise HttpError(400, f"Invalid input: {str(e)}")
+
+    except JobUpdateError as e:
+        raise HttpError(400, str(e))
+
+    except Exception as e:
         raise HttpError(500, "Internal server error")
 
 
