@@ -219,3 +219,34 @@ def get_job(request: HttpRequest, job_id: int) -> Response:
         # Handle unexpected errors
         # In production, you should log the error but not expose its details
         raise HttpError(500, "Internal server error")
+
+
+@router.delete("/{job_id}", response={204: None}, throttle=[RedisThrottle("5/second")])
+def delete_job(request: HttpRequest, job_id: int):
+    """
+    Delete a job posting by its ID with atomicity guarantee.
+
+    Args:
+        request: The HTTP request object
+        job_id: The unique identifier of the job posting
+
+    Returns:
+        Response with status code 204 on successful deletion
+
+    Raises:
+        HttpError:
+            - 404 if job posting is not found
+            - 500 for server-side errors
+    """
+    try:
+        with transaction.atomic():
+            job = Job.objects.get(id=job_id)
+            job.delete()
+            return 204, None
+
+    except Job.DoesNotExist:
+        raise HttpError(404, f"Job posting with ID {job_id} not found")
+
+    except Exception as e:
+        # Handle unexpected errors
+        raise HttpError(500, str(e))
