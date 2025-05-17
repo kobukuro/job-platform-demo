@@ -68,7 +68,7 @@ def create_job(request: HttpRequest, payload: JobCreationRequest) -> Response:
         raise HttpError(500, "Internal server error")
 
 
-@router.get("", response=JobListResponse)
+@router.get("", response=JobListResponse, throttle=[RedisThrottle("20/second")])
 def list_jobs(
         request: HttpRequest,
         title: Optional[str] = None,

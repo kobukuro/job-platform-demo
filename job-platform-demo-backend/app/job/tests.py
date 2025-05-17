@@ -144,6 +144,16 @@ class TestJobCreationAPI:
 @pytest.mark.django_db
 class TestJobListAPI:
 
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
+        """
+        Setup method that runs before each test method.
+        Clears the cache before and after each test.
+        """
+        cache.clear()
+        yield
+        cache.clear()
+
     @pytest.fixture
     def create_test_jobs(self):
         """Create test job listings"""
@@ -378,3 +388,14 @@ class TestJobListAPI:
         data = response.json()
         assert data["total_count"] == 0
         assert len(data["data"]) == 0
+
+    def test_rate_limiting(self, client):
+        """Test API rate limiting"""
+        # Send 21 requests (exceeding the 20/second limit)
+        responses = []
+        for _ in range(21):
+            response = client.get(JOBS_ENDPOINT)
+            responses.append(response)
+
+        # Verify that at least one request was rate limited
+        assert any(r.status_code == 429 for r in responses)
