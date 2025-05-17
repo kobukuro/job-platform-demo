@@ -9,16 +9,6 @@ JOBS_ENDPOINT = "/jobs"
 
 @pytest.mark.django_db
 class TestJobCreationAPI:
-    @pytest.fixture(autouse=True)
-    def setup_method(self):
-        """
-        Setup method that runs before each test method.
-        Clears the cache before and after each test.
-        """
-        cache.clear()
-        yield
-        cache.clear()
-
     def test_create_job_success_scheduled(self, client):
         """Test successful job creation with scheduled posting"""
         tomorrow = date.today() + timedelta(days=1)
@@ -143,17 +133,6 @@ class TestJobCreationAPI:
 
 @pytest.mark.django_db
 class TestJobListAPI:
-
-    @pytest.fixture(autouse=True)
-    def setup_method(self):
-        """
-        Setup method that runs before each test method.
-        Clears the cache before and after each test.
-        """
-        cache.clear()
-        yield
-        cache.clear()
-
     @pytest.fixture
     def create_test_jobs(self):
         """Create test job listings"""
@@ -395,6 +374,67 @@ class TestJobListAPI:
         responses = []
         for _ in range(21):
             response = client.get(JOBS_ENDPOINT)
+            responses.append(response)
+
+        # Verify that at least one request was rate limited
+        assert any(r.status_code == 429 for r in responses)
+
+
+@pytest.mark.django_db
+class TestJobDetailAPI:
+    @pytest.fixture
+    def test_job(self):
+        """Create a test job for testing"""
+        return Job.objects.create(
+            title="Software Engineer",
+            description="Python developer position",
+            location="Taipei",
+            salary_range={
+                "type": "annually",
+                "currency": "TWD",
+                "min": 800000,
+                "max": 1500000
+            },
+            company_name="Tech Company",
+            posting_date=date.today(),
+            expiration_date=date.today() + timedelta(days=30),
+            required_skills=["Python", "Django", "React"]
+        )
+
+    def test_get_job_success(self, client, test_job):
+        """Test successful retrieval of a job by ID"""
+        response = client.get(f"{JOBS_ENDPOINT}/{test_job.id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == test_job.id
+        assert data["title"] == test_job.title
+        assert data["description"] == test_job.description
+        assert data["location"] == test_job.location
+        assert data["salary_range"] == test_job.salary_range
+        assert data["company_name"] == test_job.company_name
+        assert data["required_skills"] == test_job.required_skills
+        assert data["status"] == test_job.status
+
+    def test_get_job_not_found(self, client):
+        """Test retrieval of non-existent job"""
+        non_existent_id = 99999
+        response = client.get(f"{JOBS_ENDPOINT}/{non_existent_id}")
+
+        assert response.status_code == 404
+
+    def test_get_job_invalid_id(self, client):
+        """Test retrieval with invalid job ID format"""
+        response = client.get(f"{JOBS_ENDPOINT}/invalid")
+
+        assert response.status_code == 422  # Validation error
+
+    def test_rate_limiting(self, client, test_job):
+        """Test API rate limiting"""
+        # Send 21 requests (exceeding the 20/second limit)
+        responses = []
+        for _ in range(21):
+            response = client.get(f"{JOBS_ENDPOINT}/{test_job.id}")
             responses.append(response)
 
         # Verify that at least one request was rate limited

@@ -189,3 +189,33 @@ def list_jobs(
         total_pages=paginator.num_pages,
         total_count=paginator.count
     )
+
+
+@router.get("/{job_id}", response=JobCreationResponse, throttle=[RedisThrottle("20/second")])
+def get_job(request: HttpRequest, job_id: int) -> Response:
+    """
+    Retrieve a single job posting by its ID.
+
+    Args:
+        request: The HTTP request object
+        job_id: The unique identifier of the job posting
+
+    Returns:
+        JobCreationResponse containing the job posting details
+
+    Raises:
+        HttpError:
+            - 404 if job posting is not found
+            - 500 for server-side errors
+    """
+    try:
+        job = Job.objects.get(id=job_id)
+        return Response(JobCreationResponse.from_orm(job).dict())
+
+    except Job.DoesNotExist:
+        raise HttpError(404, f"Job posting with ID {job_id} not found")
+
+    except Exception as e:
+        # Handle unexpected errors
+        # In production, you should log the error but not expose its details
+        raise HttpError(500, "Internal server error")
