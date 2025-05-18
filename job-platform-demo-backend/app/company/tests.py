@@ -1,6 +1,6 @@
-import pytest
 import json
-from django.core.cache import cache
+
+import pytest
 from company.models import Company, CompanyDomain
 
 COMPANIES_ENDPOINT = "/companies"
