@@ -14,7 +14,8 @@ dependencies = [
     "redis (>=6.1.0,<7.0.0)",
     "pytest (>=8.3.5,<9.0.0)",
     "pytest-django (>=4.11.1,<5.0.0)",
-    "email-validator (>=2.2.0,<3.0.0)"
+    "email-validator (>=2.2.0,<3.0.0)",
+    "django-ninja-jwt (>=5.3.7,<6.0.0)"
 ]
 
 
