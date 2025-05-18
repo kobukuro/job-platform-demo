@@ -3,6 +3,7 @@ from django.db import transaction, IntegrityError
 from ninja import Router
 from ninja.responses import Response
 from ninja.errors import HttpError
+from core.authz.jwt_auth import CustomJWTAuth
 from company.models import Company, CompanyDomain
 from company.schemas import CompanyCreationRequest, CompanyCreationResponse, CompanyDomainCreationRequest, \
     CompanyDomainCreationResponse
@@ -10,7 +11,7 @@ from company.schemas import CompanyCreationRequest, CompanyCreationResponse, Com
 router = Router(tags=['Company'])
 
 
-@router.post("", response={201: CompanyCreationResponse})
+@router.post("", response={201: CompanyCreationResponse}, auth=CustomJWTAuth())
 def create_company(request: HttpRequest, payload: CompanyCreationRequest) -> Response:
     """
     Create a new company with atomicity guarantee.
@@ -29,18 +30,22 @@ def create_company(request: HttpRequest, payload: CompanyCreationRequest) -> Res
     """
     try:
         with transaction.atomic():
+            user = request.auth
+            if not user.is_superuser:
+                raise HttpError(403, "Permission denied")
             company = Company.objects.create(
                 name=payload.name
             )
         return Response(CompanyCreationResponse.from_orm(company).dict(), status=201)
-
+    except HttpError:
+        raise
     except IntegrityError as e:
         raise HttpError(409, "Company with this name already exists")
     except Exception as e:
         raise HttpError(500, "Internal server error")
 
 
-@router.delete("/{company_id}", response={204: None})
+@router.delete("/{company_id}", response={204: None}, auth=CustomJWTAuth())
 def delete_company(request: HttpRequest, company_id: int) -> Response:
     """
     Delete an existing company by ID.
@@ -59,17 +64,21 @@ def delete_company(request: HttpRequest, company_id: int) -> Response:
     """
     try:
         with transaction.atomic():
+            user = request.auth
+            if not user.is_superuser:
+                raise HttpError(403, "Permission denied")
             company = Company.objects.get(id=company_id)
             company.delete()
         return Response(None, status=204)
-
+    except HttpError:
+        raise
     except Company.DoesNotExist:
         raise HttpError(404, "Company not found")
     except Exception as e:
         raise HttpError(500, "Internal server error")
 
 
-@router.post("/{company_id}/domains", response={201: CompanyDomainCreationRequest})
+@router.post("/{company_id}/domains", response={201: CompanyDomainCreationRequest}, auth=CustomJWTAuth())
 def create_company_domain(request: HttpRequest, company_id: int, payload: CompanyDomainCreationRequest) -> Response:
     """
     Create a new domain for a specific company.
@@ -90,13 +99,17 @@ def create_company_domain(request: HttpRequest, company_id: int, payload: Compan
     """
     try:
         with transaction.atomic():
+            user = request.auth
+            if not user.is_superuser:
+                raise HttpError(403, "Permission denied")
             company = Company.objects.get(id=company_id)
             domain = CompanyDomain.objects.create(
                 name=payload.name,
                 company=company
             )
         return Response(CompanyDomainCreationResponse.from_orm(domain).dict(), status=201)
-
+    except HttpError:
+        raise
     except Company.DoesNotExist:
         raise HttpError(404, "Company not found")
     except IntegrityError:
@@ -105,7 +118,7 @@ def create_company_domain(request: HttpRequest, company_id: int, payload: Compan
         raise HttpError(500, "Internal server error")
 
 
-@router.delete("/{company_id}/domains/{domain_id}", response={204: None})
+@router.delete("/{company_id}/domains/{domain_id}", response={204: None}, auth=CustomJWTAuth())
 def delete_company_domain(request: HttpRequest, company_id: int, domain_id: int) -> Response:
     """
     Delete a domain from a specific company.
@@ -126,6 +139,9 @@ def delete_company_domain(request: HttpRequest, company_id: int, domain_id: int)
     """
     try:
         with transaction.atomic():
+            user = request.auth
+            if not user.is_superuser:
+                raise HttpError(403, "Permission denied")
             try:
                 company = Company.objects.get(id=company_id)
             except Company.DoesNotExist:
