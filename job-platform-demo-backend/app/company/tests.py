@@ -1,6 +1,6 @@
-import pytest
 import json
-from django.core.cache import cache
+
+import pytest
 from company.models import Company, CompanyDomain
 
 COMPANIES_ENDPOINT = "/companies"
@@ -173,3 +173,83 @@ class TestDomainCreationAPI:
         )
 
         assert response.status_code == 422
+
+
+@pytest.mark.django_db
+class TestDomainDeletionAPI:
+    def test_delete_domain_success(self, client):
+        """Test successful domain deletion"""
+        company = Company.objects.create(name="Test Company")
+        domain = CompanyDomain.objects.create(
+            name="test.com",
+            company=company
+        )
+
+        response = client.delete(
+            f"{COMPANIES_ENDPOINT}/{company.id}/domains/{domain.id}"
+        )
+
+        assert response.status_code == 204
+
+        # Verify domain was deleted from database
+        with pytest.raises(CompanyDomain.DoesNotExist):
+            CompanyDomain.objects.get(id=domain.id)
+
+    def test_delete_domain_company_not_found(self, client):
+        """Test deleting domain when company doesn't exist"""
+        non_existent_company_id = 99999
+        domain_id = 1
+
+        response = client.delete(
+            f"{COMPANIES_ENDPOINT}/{non_existent_company_id}/domains/{domain_id}"
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Company not found"
+
+    def test_delete_domain_not_found(self, client):
+        """Test deleting non-existent domain"""
+        company = Company.objects.create(name="Test Company")
+        non_existent_domain_id = 99999
+
+        response = client.delete(
+            f"{COMPANIES_ENDPOINT}/{company.id}/domains/{non_existent_domain_id}"
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Domain not found"
+
+    def test_delete_domain_wrong_company(self, client):
+        """Test deleting domain that belongs to different company"""
+        company1 = Company.objects.create(name="Company 1")
+        company2 = Company.objects.create(name="Company 2")
+
+        domain = CompanyDomain.objects.create(
+            name="test.com",
+            company=company1
+        )
+
+        response = client.delete(
+            f"{COMPANIES_ENDPOINT}/{company2.id}/domains/{domain.id}"
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Domain not found"
+
+    def test_delete_domain_invalid_company_id(self, client):
+        """Test deleting domain with invalid company ID format"""
+        response = client.delete(
+            f"{COMPANIES_ENDPOINT}/invalid/domains/1"
+        )
+
+        assert response.status_code == 422  # Validation error
+
+    def test_delete_domain_invalid_domain_id(self, client):
+        """Test deleting domain with invalid domain ID format"""
+        company = Company.objects.create(name="Test Company")
+
+        response = client.delete(
+            f"{COMPANIES_ENDPOINT}/{company.id}/domains/invalid"
+        )
+
+        assert response.status_code == 422  # Validation error

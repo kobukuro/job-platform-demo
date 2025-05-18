@@ -4,7 +4,8 @@ from ninja import Router
 from ninja.responses import Response
 from ninja.errors import HttpError
 from company.models import Company, CompanyDomain
-from company.schemas import CompanyCreationRequest, CompanyCreationResponse, CompanyDomainCreationRequest, CompanyDomainCreationResponse
+from company.schemas import CompanyCreationRequest, CompanyCreationResponse, CompanyDomainCreationRequest, \
+    CompanyDomainCreationResponse
 
 router = Router(tags=['Company'])
 
@@ -100,5 +101,45 @@ def create_company_domain(request: HttpRequest, company_id: int, payload: Compan
         raise HttpError(404, "Company not found")
     except IntegrityError:
         raise HttpError(409, "Domain with this name already exists")
+    except Exception:
+        raise HttpError(500, "Internal server error")
+
+
+@router.delete("/{company_id}/domains/{domain_id}", response={204: None})
+def delete_company_domain(request: HttpRequest, company_id: int, domain_id: int) -> Response:
+    """
+    Delete a domain from a specific company.
+
+    Args:
+        request: The HTTP request object
+        company_id: The ID of the company
+        domain_id: The ID of the domain to delete
+
+    Returns:
+        Response with status code 204 on success
+
+    Raises:
+        HttpError:
+            - 404 if company not found
+            - 404 if domain not found
+            - 500 for server-side errors
+    """
+    try:
+        with transaction.atomic():
+            try:
+                company = Company.objects.get(id=company_id)
+            except Company.DoesNotExist:
+                raise HttpError(404, "Company not found")
+
+            try:
+                domain = CompanyDomain.objects.get(id=domain_id, company=company)
+            except CompanyDomain.DoesNotExist:
+                raise HttpError(404, "Domain not found")
+
+            domain.delete()
+        return Response(None, status=204)
+
+    except HttpError:
+        raise
     except Exception:
         raise HttpError(500, "Internal server error")
