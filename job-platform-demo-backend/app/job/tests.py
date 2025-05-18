@@ -1,15 +1,98 @@
 import pytest
 from datetime import date, timedelta
 import json
-from django.core.cache import cache
+from django.contrib.auth import get_user_model
 from job.models import Job
+from company.models import Company, CompanyDomain
 
+User = get_user_model()
 JOBS_ENDPOINT = "/jobs"
+LOGIN_ENDPOINT = "/users/login"
+
+
+@pytest.fixture
+def superuser_credentials():
+    return {
+        "email": "admin@test.com",
+        "password": "password123"
+    }
+
+
+@pytest.fixture
+def normal_user_test_company_credentials():
+    return {
+        "email": "user@test.com",
+        "password": "password123"
+    }
+
+
+@pytest.fixture
+def normal_user_no_company_credentials():
+    return {
+        "email": "user@gmail.com",
+        "password": "password123"
+    }
+
+
+@pytest.fixture
+def superuser(superuser_credentials):
+    return User.objects.create_superuser(
+        email=superuser_credentials["email"],
+        password=superuser_credentials["password"]
+    )
+
+
+@pytest.fixture
+def normal_user_test_company(normal_user_test_company_credentials):
+    test_company = Company.objects.create(name="Test Corp")
+    CompanyDomain.objects.create(name="test.com", company=test_company)
+    return User.objects.create_user(
+        email=normal_user_test_company_credentials["email"],
+        password=normal_user_test_company_credentials["password"]
+    )
+
+
+@pytest.fixture
+def normal_user_no_company(normal_user_no_company_credentials):
+    return User.objects.create_user(
+        email=normal_user_no_company_credentials["email"],
+        password=normal_user_no_company_credentials["password"]
+    )
+
+
+@pytest.fixture
+def superuser_token(client, superuser, superuser_credentials):
+    response = client.post(
+        LOGIN_ENDPOINT,
+        data=json.dumps(superuser_credentials),
+        content_type="application/json"
+    )
+    return response.json()["access_token"]
+
+
+@pytest.fixture
+def normal_user_test_company_token(client, normal_user_test_company, normal_user_test_company_credentials):
+    response = client.post(
+        LOGIN_ENDPOINT,
+        data=json.dumps(normal_user_test_company_credentials),
+        content_type="application/json"
+    )
+    return response.json()["access_token"]
+
+
+@pytest.fixture
+def normal_user_no_company_token(client, normal_user_no_company, normal_user_no_company_credentials):
+    response = client.post(
+        LOGIN_ENDPOINT,
+        data=json.dumps(normal_user_no_company_credentials),
+        content_type="application/json"
+    )
+    return response.json()["access_token"]
 
 
 @pytest.mark.django_db
 class TestJobCreationAPI:
-    def test_create_job_success_scheduled(self, client):
+    def test_create_job_success_scheduled_test_company_user(self, client, normal_user_test_company_token):
         """Test successful job creation with scheduled posting"""
         tomorrow = date.today() + timedelta(days=1)
         next_month = date.today() + timedelta(days=30)
@@ -19,7 +102,7 @@ class TestJobCreationAPI:
             "description": "Python developer position",
             "location": "Taipei, Taiwan",
             "salary_range": {"type": "annually", "currency": "TWD", "min": "1200000", "max": "1500000"},
-            "company_name": "Tech Corp",
+            "company_name": "Test Corp",
             "posting_date": tomorrow.isoformat(),
             "expiration_date": next_month.isoformat(),
             "required_skills": ["Python", "Django", "REST API"]
@@ -28,7 +111,8 @@ class TestJobCreationAPI:
         response = client.post(
             JOBS_ENDPOINT,
             data=json.dumps(payload),
-            content_type="application/json"
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}"
         )
 
         assert response.status_code == 201
@@ -36,7 +120,28 @@ class TestJobCreationAPI:
         assert data["title"] == payload["title"]
         assert data["status"] == "scheduled"
 
-    def test_create_job_immediate_posting(self, client):
+    def test_create_job_forbidden_no_company_user(self, client, normal_user_no_company_token):
+        """Test job creation forbidden for user without company"""
+        payload = {
+            "title": "Frontend Developer",
+            "description": "React developer position",
+            "location": "Taipei, Taiwan",
+            "salary_range": {"type": "annually", "currency": "TWD", "min": "1200000", "max": "1500000"},
+            "company_name": "Test Corp",
+            "posting_date": date.today().isoformat(),
+            "expiration_date": (date.today() + timedelta(days=30)).isoformat(),
+            "required_skills": ["React", "JavaScript", "TypeScript"]
+        }
+
+        response = client.post(
+            JOBS_ENDPOINT,
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {normal_user_no_company_token}"
+        )
+        assert response.status_code == 403
+
+    def test_create_job_immediate_posting_test_company_user(self, client, normal_user_test_company_token):
         """Test job creation with immediate posting"""
         today = date.today()
         next_month = today + timedelta(days=30)
@@ -46,7 +151,7 @@ class TestJobCreationAPI:
             "description": "React developer position",
             "location": "Taipei, Taiwan",
             "salary_range": {"type": "annually", "currency": "TWD", "min": "1200000", "max": "1500000"},
-            "company_name": "Web Corp",
+            "company_name": "Test Corp",
             "posting_date": today.isoformat(),
             "expiration_date": next_month.isoformat(),
             "required_skills": ["React", "JavaScript", "TypeScript"]
@@ -55,14 +160,15 @@ class TestJobCreationAPI:
         response = client.post(
             JOBS_ENDPOINT,
             data=json.dumps(payload),
-            content_type="application/json"
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}"
         )
 
         assert response.status_code == 201
         data = response.json()
         assert data["status"] == "active"
 
-    def test_create_job_invalid_dates(self, client):
+    def test_create_job_invalid_dates_test_company_user(self, client, normal_user_test_company_token):
         """Test job creation with invalid dates"""
         today = date.today()
         yesterday = today - timedelta(days=1)
@@ -72,7 +178,7 @@ class TestJobCreationAPI:
             "description": "Go developer position",
             "location": "Taipei, Taiwan",
             "salary_range": {"type": "annually", "currency": "TWD", "min": "1200000", "max": "1500000"},
-            "company_name": "Backend Corp",
+            "company_name": "Test Corp",
             "posting_date": today.isoformat(),
             "expiration_date": yesterday.isoformat(),  # Expiration date before posting date
             "required_skills": ["Go", "Docker"]
@@ -81,12 +187,13 @@ class TestJobCreationAPI:
         response = client.post(
             JOBS_ENDPOINT,
             data=json.dumps(payload),
-            content_type="application/json"
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}"
         )
 
         assert response.status_code == 422
 
-    def test_create_job_missing_required_fields(self, client):
+    def test_create_job_missing_required_fields_test_company_user(self, client, normal_user_test_company_token):
         """Test job creation with missing required fields"""
         payload = {
             "title": "DevOps Engineer"
@@ -96,13 +203,14 @@ class TestJobCreationAPI:
         response = client.post(
             JOBS_ENDPOINT,
             data=json.dumps(payload),
-            content_type="application/json"
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}"
         )
 
         assert response.status_code == 422
 
     @pytest.mark.django_db(transaction=True)
-    def test_rate_limiting(self, client):
+    def test_rate_limiting_test_company_user(self, client, normal_user_test_company_token):
         """Test API rate limiting"""
         tomorrow = date.today() + timedelta(days=1)
         next_month = date.today() + timedelta(days=30)
@@ -111,7 +219,7 @@ class TestJobCreationAPI:
             "description": "Python developer position",
             "location": "Taipei, Taiwan",
             "salary_range": {"type": "annually", "currency": "TWD", "min": "1200000", "max": "1500000"},
-            "company_name": "Tech Corp",
+            "company_name": "Test Corp",
             "posting_date": tomorrow.isoformat(),
             "expiration_date": next_month.isoformat(),
             "required_skills": ["Python", "Django", "REST API"]
@@ -123,7 +231,8 @@ class TestJobCreationAPI:
             response = client.post(
                 JOBS_ENDPOINT,
                 data=json.dumps(payload),
-                content_type="application/json"
+                content_type="application/json",
+                HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}"
             )
             responses.append(response)
 

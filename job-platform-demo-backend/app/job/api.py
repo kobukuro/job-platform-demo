@@ -10,12 +10,14 @@ from typing import List, Optional
 from job.schemas import JobCreationRequest, JobCreationResponse, JobListResponse
 from job.models import Job
 from core.throttling.redis import RedisThrottle
+from core.authz.jwt_auth import CustomJWTAuth
 from job_platform_demo_backend.exceptions import JobUpdateError
 
 router = Router(tags=['Job'])
 
 
-@router.post("", response={201: JobCreationResponse}, throttle=[RedisThrottle("10/second")])
+@router.post("", response={201: JobCreationResponse}, throttle=[RedisThrottle("10/second")],
+             auth=CustomJWTAuth())
 def create_job(request: HttpRequest, payload: JobCreationRequest) -> Response:
     """
     Create a new job listing with atomicity guarantee.
@@ -37,6 +39,11 @@ def create_job(request: HttpRequest, payload: JobCreationRequest) -> Response:
     """
     try:
         with transaction.atomic():
+            user = request.auth
+            if not user.is_superuser:
+                if user.company is None or user.company.name != payload.company_name:
+                    raise HttpError(403, "You don't have permission to create jobs for this company")
+
             today = date.today()
             status = 'scheduled' if payload.posting_date > today else 'active'
 
@@ -54,6 +61,9 @@ def create_job(request: HttpRequest, payload: JobCreationRequest) -> Response:
             job.save()
 
         return Response(JobCreationResponse.from_orm(job).dict(), status=201)
+
+    except HttpError:
+        raise
 
     except IntegrityError as e:
         # Handle database integrity errors (e.g., unique constraint violations)
