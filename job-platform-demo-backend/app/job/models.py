@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.postgres.fields import ArrayField
-
+from user.models import User
 
 class Job(models.Model):
     STATUS_CHOICES = [
@@ -25,7 +25,9 @@ class Job(models.Model):
         choices=STATUS_CHOICES,
         default='active'
     )
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, related_name='jobs_created', null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    last_updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, related_name='jobs_last_updated', null=True)
     last_updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
