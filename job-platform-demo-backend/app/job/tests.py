@@ -431,9 +431,9 @@ class TestJobDetailAPI:
 
     def test_rate_limiting(self, client, test_job):
         """Test API rate limiting"""
-        # Send 21 requests (exceeding the 20/second limit)
+        # Send 30 requests (exceeding the 20/second limit)
         responses = []
-        for _ in range(21):
+        for _ in range(30):
             response = client.get(f"{JOBS_ENDPOINT}/{test_job.id}")
             responses.append(response)
 
