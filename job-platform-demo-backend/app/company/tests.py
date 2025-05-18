@@ -1,7 +1,7 @@
 import pytest
 import json
 from django.core.cache import cache
-from company.models import Company
+from company.models import Company, CompanyDomain
 
 COMPANIES_ENDPOINT = "/companies"
 
@@ -94,3 +94,82 @@ class TestCompanyDeletionAPI:
         response = client.delete(f"{COMPANIES_ENDPOINT}/{non_existent_id}")
 
         assert response.status_code == 404
+
+
+@pytest.mark.django_db
+class TestDomainCreationAPI:
+    def test_create_domain_success(self, client):
+        """Test successful domain creation"""
+        # Create a company first
+        company = Company.objects.create(name="Test Company")
+
+        payload = {
+            "name": "test.com"
+        }
+
+        response = client.post(
+            f"{COMPANIES_ENDPOINT}/{company.id}/domains",
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+
+        assert response.status_code == 201
+
+        # Verify domain was created in database
+        domain = CompanyDomain.objects.get(name=payload["name"])
+        assert domain is not None
+        assert domain.company_id == company.id
+
+    def test_create_domain_company_not_found(self, client):
+        """Test creating domain for non-existent company"""
+        non_existent_id = 99999
+
+        payload = {
+            "name": "test.com"
+        }
+
+        response = client.post(
+            f"{COMPANIES_ENDPOINT}/{non_existent_id}/domains",
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+
+        assert response.status_code == 404
+
+    def test_create_duplicate_domain(self, client):
+        """Test creating domain with duplicate name"""
+        # Create two companies
+        company1 = Company.objects.create(name="Company 1")
+        company2 = Company.objects.create(name="Company 2")
+
+        # Create domain for first company
+        CompanyDomain.objects.create(name="test.com", company=company1)
+
+        # Try to create same domain for second company
+        payload = {
+            "name": "test.com"
+        }
+
+        response = client.post(
+            f"{COMPANIES_ENDPOINT}/{company2.id}/domains",
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+
+        assert response.status_code == 409
+
+    def test_create_domain_empty_name(self, client):
+        """Test creating domain with empty name"""
+        company = Company.objects.create(name="Test Company")
+
+        payload = {
+            "name": ""
+        }
+
+        response = client.post(
+            f"{COMPANIES_ENDPOINT}/{company.id}/domains",
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+
+        assert response.status_code == 422
