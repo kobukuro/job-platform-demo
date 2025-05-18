@@ -56,7 +56,9 @@ def create_job(request: HttpRequest, payload: JobCreationRequest) -> Response:
                 posting_date=payload.posting_date,
                 expiration_date=payload.expiration_date,
                 required_skills=payload.required_skills,
-                status=status
+                status=status,
+                created_by=user,
+                last_updated_by=user
             )
             job.save()
 
