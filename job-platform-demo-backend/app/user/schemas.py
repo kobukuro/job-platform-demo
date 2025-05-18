@@ -19,3 +19,16 @@ class UserRegistrationResponse(Schema):
     is_superuser: bool
     created_at: datetime
     last_updated_at: datetime
+
+
+class UserLoginRequest(Schema):
+    email: EmailStr = Field(...)
+    password: str = Field(
+        ...,
+        min_length=1
+    )
+
+
+class UserLoginResponse(Schema):
+    access_token: str
+    refresh_token: str
