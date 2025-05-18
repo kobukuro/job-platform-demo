@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'job',
     'company',
+    'user',
 ]
 
 MIDDLEWARE = [
@@ -90,6 +91,8 @@ DATABASES = {
 REDIS_HOST = os.environ.get('REDIS_HOST')
 REDIS_PORT = int(os.environ.get('REDIS_PORT'))
 REDIS_PASSWORD = os.environ.get('REDIS_PASSWORD')
+
+AUTH_USER_MODEL = 'user.User'
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
