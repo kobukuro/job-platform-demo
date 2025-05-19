@@ -234,7 +234,8 @@ def get_job(request: HttpRequest, job_id: int) -> Response:
         raise HttpError(500, "Internal server error")
 
 
-@router.put("/{job_id}", response=JobCreationResponse, throttle=[RedisThrottle("10/second")])
+@router.put("/{job_id}", response=JobCreationResponse, throttle=[RedisThrottle("10/second")],
+            auth=CustomJWTAuth())
 def update_job(request: HttpRequest, job_id: int, payload: JobCreationRequest) -> Response:
     """
     Update an existing job posting with atomicity guarantee.
@@ -256,7 +257,11 @@ def update_job(request: HttpRequest, job_id: int, payload: JobCreationRequest) -
     """
     try:
         with transaction.atomic():
+            user = request.auth
             job = Job.objects.get(id=job_id)
+            if not user.is_superuser:
+                if job.created_by != user:
+                    raise HttpError(403, "You don't have permission to update this job")
             # Prevent company name changes
             if payload.company_name != job.company_name:
                 raise JobUpdateError("Company name cannot be changed")
@@ -273,10 +278,14 @@ def update_job(request: HttpRequest, job_id: int, payload: JobCreationRequest) -
             job.expiration_date = payload.expiration_date
             job.required_skills = payload.required_skills
             job.status = status
+            job.last_updated_by = user
 
             job.save()
 
         return Response(JobCreationResponse.from_orm(job).dict())
+
+    except HttpError:
+        raise
 
     except Job.DoesNotExist:
         raise HttpError(404, f"Job posting with ID {job_id} not found")
