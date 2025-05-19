@@ -800,7 +800,7 @@ class TestJobUpdateAPI:
 @pytest.mark.django_db
 class TestJobDeletionAPI:
     @pytest.fixture
-    def test_job(self):
+    def test_job(self, normal_user_test_company):
         """Create a test job for testing"""
         return Job.objects.create(
             title="Software Engineer",
@@ -812,40 +812,63 @@ class TestJobDeletionAPI:
                 "min": 800000,
                 "max": 1500000
             },
-            company_name="Tech Company",
+            company_name="Test Corp",
             posting_date=date.today(),
             expiration_date=date.today() + timedelta(days=30),
-            required_skills=["Python", "Django", "React"]
+            required_skills=["Python", "Django", "React"],
+            created_by=normal_user_test_company,
+            last_updated_by=normal_user_test_company
         )
 
-    def test_delete_job_success(self, client, test_job):
+    def test_delete_job_success_test_superuser(self, client, test_job, superuser_token):
         """Test successful deletion of a job by ID"""
-        response = client.delete(f"{JOBS_ENDPOINT}/{test_job.id}")
+        response = client.delete(f"{JOBS_ENDPOINT}/{test_job.id}",
+                                 HTTP_AUTHORIZATION=f"Bearer {superuser_token}")
 
         assert response.status_code == 204
 
         # Verify that the job no longer exists
         assert not Job.objects.filter(id=test_job.id).exists()
 
-    def test_delete_job_not_found(self, client):
+    def test_delete_job_success_test_company_user(self, client, test_job, normal_user_test_company_token):
+        """Test successful deletion of a job by ID"""
+        response = client.delete(f"{JOBS_ENDPOINT}/{test_job.id}",
+                                 HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}")
+
+        assert response.status_code == 204
+
+        # Verify that the job no longer exists
+        assert not Job.objects.filter(id=test_job.id).exists()
+
+    def test_delete_job_forbidden_no_company_user(self, client, test_job, normal_user_no_company_token):
+        """Test deletion forbidden for user without company"""
+        response = client.delete(f"{JOBS_ENDPOINT}/{test_job.id}",
+                                 HTTP_AUTHORIZATION=f"Bearer {normal_user_no_company_token}")
+
+        assert response.status_code == 403
+
+    def test_delete_job_not_found_test_company_user(self, client, normal_user_test_company_token):
         """Test deletion of non-existent job"""
         non_existent_id = 99999
-        response = client.delete(f"{JOBS_ENDPOINT}/{non_existent_id}")
+        response = client.delete(f"{JOBS_ENDPOINT}/{non_existent_id}",
+                                 HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}")
 
         assert response.status_code == 404
 
-    def test_delete_job_invalid_id(self, client):
+    def test_delete_job_invalid_id_test_company_user(self, client, normal_user_test_company_token):
         """Test deletion with invalid job ID format"""
-        response = client.delete(f"{JOBS_ENDPOINT}/invalid")
+        response = client.delete(f"{JOBS_ENDPOINT}/invalid",
+                                 HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}")
 
         assert response.status_code == 422  # Validation error
 
-    def test_rate_limiting(self, client, test_job):
+    def test_rate_limiting_test_company_user(self, client, test_job, normal_user_test_company_token):
         """Test API rate limiting"""
         # Send 6 requests (exceeding the 5/second limit)
         responses = []
         for _ in range(6):
-            response = client.delete(f"{JOBS_ENDPOINT}/{test_job.id}")
+            response = client.delete(f"{JOBS_ENDPOINT}/{test_job.id}",
+                                     HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}")
             responses.append(response)
 
         # Verify that at least one request was rate limited
