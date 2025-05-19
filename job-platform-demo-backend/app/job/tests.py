@@ -43,9 +43,13 @@ def superuser(superuser_credentials):
 
 
 @pytest.fixture
-def normal_user_test_company(normal_user_test_company_credentials):
+def test_company():
     test_company = Company.objects.create(name="Test Corp")
     CompanyDomain.objects.create(name="test.com", company=test_company)
+
+
+@pytest.fixture
+def normal_user_test_company(test_company, normal_user_test_company_credentials):
     return User.objects.create_user(
         email=normal_user_test_company_credentials["email"],
         password=normal_user_test_company_credentials["password"]
@@ -553,7 +557,7 @@ class TestJobDetailAPI:
 @pytest.mark.django_db
 class TestJobUpdateAPI:
     @pytest.fixture
-    def test_job(self):
+    def test_job(self, normal_user_test_company):
         """Create a test job for testing"""
         return Job.objects.create(
             title="Software Engineer",
@@ -565,14 +569,16 @@ class TestJobUpdateAPI:
                 "min": 800000,
                 "max": 1500000
             },
-            company_name="Tech Company",
+            company_name="Test Corp",
             posting_date=date.today(),
             expiration_date=date.today() + timedelta(days=30),
             required_skills=["Python", "Django", "React"],
-            status="active"
+            status="active",
+            created_by=normal_user_test_company,
+            last_updated_by=normal_user_test_company
         )
 
-    def test_update_job_success(self, client, test_job):
+    def test_update_job_success_test_superuser(self, client, test_job, superuser_token):
         """Test successful update of a job"""
         tomorrow = date.today() + timedelta(days=1)
         next_month = date.today() + timedelta(days=30)
@@ -587,7 +593,7 @@ class TestJobUpdateAPI:
                 "min": "900000",  # Changed salary
                 "max": "1600000"
             },
-            "company_name": "Tech Company",  # Same company name
+            "company_name": "Test Corp",  # Same company name
             "posting_date": tomorrow.isoformat(),
             "expiration_date": next_month.isoformat(),
             "required_skills": ["Python", "Django", "React", "AWS"]  # Added skill
@@ -596,7 +602,8 @@ class TestJobUpdateAPI:
         response = client.put(
             f"{JOBS_ENDPOINT}/{test_job.id}",
             data=json.dumps(payload),
-            content_type="application/json"
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {superuser_token}"
         )
 
         assert response.status_code == 200
@@ -606,7 +613,72 @@ class TestJobUpdateAPI:
         assert data["required_skills"] == payload["required_skills"]
         assert data["status"] == "scheduled"  # Should be scheduled as posting_date is tomorrow
 
-    def test_update_job_company_name_change(self, client, test_job):
+    def test_update_job_success_test_company_user(self, client, test_job, normal_user_test_company_token):
+        """Test successful update of a job"""
+        tomorrow = date.today() + timedelta(days=1)
+        next_month = date.today() + timedelta(days=30)
+
+        payload = {
+            "title": "Senior Software Engineer",  # Changed title
+            "description": "Updated position description",  # Changed description
+            "location": "Taipei",
+            "salary_range": {
+                "type": "annually",
+                "currency": "TWD",
+                "min": "900000",  # Changed salary
+                "max": "1600000"
+            },
+            "company_name": "Test Corp",  # Same company name
+            "posting_date": tomorrow.isoformat(),
+            "expiration_date": next_month.isoformat(),
+            "required_skills": ["Python", "Django", "React", "AWS"]  # Added skill
+        }
+
+        response = client.put(
+            f"{JOBS_ENDPOINT}/{test_job.id}",
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["title"] == payload["title"]
+        assert data["description"] == payload["description"]
+        assert data["required_skills"] == payload["required_skills"]
+        assert data["status"] == "scheduled"  # Should be scheduled as posting_date is tomorrow
+
+    def test_update_job_success_no_company_user(self, client, test_job, normal_user_no_company_token):
+        """Test successful update of a job"""
+        tomorrow = date.today() + timedelta(days=1)
+        next_month = date.today() + timedelta(days=30)
+
+        payload = {
+            "title": "Senior Software Engineer",  # Changed title
+            "description": "Updated position description",  # Changed description
+            "location": "Taipei",
+            "salary_range": {
+                "type": "annually",
+                "currency": "TWD",
+                "min": "900000",  # Changed salary
+                "max": "1600000"
+            },
+            "company_name": "Test Corp",  # Same company name
+            "posting_date": tomorrow.isoformat(),
+            "expiration_date": next_month.isoformat(),
+            "required_skills": ["Python", "Django", "React", "AWS"]  # Added skill
+        }
+
+        response = client.put(
+            f"{JOBS_ENDPOINT}/{test_job.id}",
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {normal_user_no_company_token}"
+        )
+
+        assert response.status_code == 403
+
+    def test_update_job_company_name_change_test_company_user(self, client, test_job, normal_user_test_company_token):
         """Test attempt to change company name"""
         payload = {
             "title": test_job.title,
@@ -622,12 +694,13 @@ class TestJobUpdateAPI:
         response = client.put(
             f"{JOBS_ENDPOINT}/{test_job.id}",
             data=json.dumps(payload),
-            content_type="application/json"
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}"
         )
 
         assert response.status_code == 400
 
-    def test_update_job_not_found(self, client):
+    def test_update_job_not_found_test_company_user(self, client, normal_user_test_company_token):
         """Test update of non-existent job"""
         payload = {
             "title": "Test Job",
@@ -648,12 +721,13 @@ class TestJobUpdateAPI:
         response = client.put(
             f"{JOBS_ENDPOINT}/99999",
             data=json.dumps(payload),
-            content_type="application/json"
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}"
         )
 
         assert response.status_code == 404
 
-    def test_update_job_invalid_dates(self, client, test_job):
+    def test_update_job_invalid_dates_test_company_user(self, client, test_job, normal_user_test_company_token):
         """Test update with invalid dates"""
         today = date.today()
         yesterday = today - timedelta(days=1)
@@ -672,12 +746,14 @@ class TestJobUpdateAPI:
         response = client.put(
             f"{JOBS_ENDPOINT}/{test_job.id}",
             data=json.dumps(payload),
-            content_type="application/json"
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}"
         )
 
         assert response.status_code == 422
 
-    def test_update_job_missing_required_fields(self, client, test_job):
+    def test_update_job_missing_required_fields_test_company_user(self, client, test_job,
+                                                                  normal_user_test_company_token):
         """Test update with missing required fields"""
         payload = {
             "title": "Updated Title"
@@ -687,12 +763,13 @@ class TestJobUpdateAPI:
         response = client.put(
             f"{JOBS_ENDPOINT}/{test_job.id}",
             data=json.dumps(payload),
-            content_type="application/json"
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}"
         )
 
         assert response.status_code == 422
 
-    def test_rate_limiting(self, client, test_job):
+    def test_rate_limiting_test_company_user(self, client, test_job, normal_user_test_company_token):
         """Test API rate limiting"""
         payload = {
             "title": test_job.title,
@@ -711,7 +788,8 @@ class TestJobUpdateAPI:
             response = client.put(
                 f"{JOBS_ENDPOINT}/{test_job.id}",
                 data=json.dumps(payload),
-                content_type="application/json"
+                content_type="application/json",
+                HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}"
             )
             responses.append(response)
 
