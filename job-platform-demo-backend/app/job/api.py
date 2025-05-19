@@ -303,7 +303,8 @@ def update_job(request: HttpRequest, job_id: int, payload: JobCreationRequest) -
         raise HttpError(500, "Internal server error")
 
 
-@router.delete("/{job_id}", response={204: None}, throttle=[RedisThrottle("5/second")])
+@router.delete("/{job_id}", response={204: None}, throttle=[RedisThrottle("5/second")],
+               auth=CustomJWTAuth())
 def delete_job(request: HttpRequest, job_id: int):
     """
     Delete a job posting by its ID with atomicity guarantee.
@@ -322,9 +323,15 @@ def delete_job(request: HttpRequest, job_id: int):
     """
     try:
         with transaction.atomic():
+            user = request.auth
             job = Job.objects.get(id=job_id)
+            if not user.is_superuser:
+                if job.created_by != user:
+                    raise HttpError(403, "You don't have permission to delete this job")
             job.delete()
             return 204, None
+    except HttpError:
+        raise
 
     except Job.DoesNotExist:
         raise HttpError(404, f"Job posting with ID {job_id} not found")
