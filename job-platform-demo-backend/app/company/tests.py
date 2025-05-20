@@ -13,7 +13,7 @@ LOGIN_ENDPOINT = "/users/login"
 def superuser_credentials():
     return {
         "email": "admin@test.com",
-        "password": "password123"
+        "password": "!Password123"
     }
 
 
@@ -21,7 +21,7 @@ def superuser_credentials():
 def normal_user_credentials():
     return {
         "email": "user@test.com",
-        "password": "password123"
+        "password": "!Password123"
     }
 
 
