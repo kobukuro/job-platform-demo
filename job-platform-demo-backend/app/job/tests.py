@@ -593,7 +593,7 @@ class TestJobListAPI:
 @pytest.mark.django_db
 class TestJobDetailAPI:
     @pytest.fixture
-    def test_job(self):
+    def test_active_job(self, normal_user_test_company):
         """Create a test job for testing"""
         return Job.objects.create(
             title="Software Engineer",
@@ -605,26 +605,73 @@ class TestJobDetailAPI:
                 "min": 800000,
                 "max": 1500000
             },
-            company_name="Tech Company",
+            company_name="Test Corp",
             posting_date=date.today(),
             expiration_date=date.today() + timedelta(days=30),
-            required_skills=["Python", "Django", "React"]
+            required_skills=["Python", "Django", "React"],
+            status="active",
+            created_by=normal_user_test_company,
+            last_updated_by=normal_user_test_company
         )
 
-    def test_get_job_success(self, client, test_job):
+    @pytest.fixture
+    def test_scheduled_job(self, normal_user_test_company):
+        """Create a test job for testing"""
+        return Job.objects.create(
+            title="Software Engineer",
+            description="Python developer position",
+            location="Taipei, Taiwan",
+            salary_range={
+                "type": "annually",
+                "currency": "TWD",
+                "min": 800000,
+                "max": 1500000
+            },
+            company_name="Test Corp",
+            posting_date=date.today() + timedelta(days=1),
+            expiration_date=date.today() + timedelta(days=31),
+            required_skills=["Python", "Django", "React"],
+            status="scheduled",
+            created_by=normal_user_test_company,
+            last_updated_by=normal_user_test_company
+        )
+
+    @pytest.fixture
+    def test_expired_job(self, normal_user_test_company):
+        """Create a test job for testing"""
+        return Job.objects.create(
+            title="Software Engineer",
+            description="Python developer position",
+            location="Taipei, Taiwan",
+            salary_range={
+                "type": "annually",
+                "currency": "TWD",
+                "min": 800000,
+                "max": 1500000
+            },
+            company_name="Test Corp",
+            posting_date=date.today() - timedelta(days=34),
+            expiration_date=date.today() - timedelta(days=4),
+            required_skills=["Python", "Django", "React"],
+            status="expired",
+            created_by=normal_user_test_company,
+            last_updated_by=normal_user_test_company
+        )
+
+    def test_get_job_success(self, client, test_active_job):
         """Test successful retrieval of a job by ID"""
-        response = client.get(f"{JOBS_ENDPOINT}/{test_job.id}")
+        response = client.get(f"{JOBS_ENDPOINT}/{test_active_job.id}")
 
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == test_job.id
-        assert data["title"] == test_job.title
-        assert data["description"] == test_job.description
-        assert data["location"] == test_job.location
-        assert data["salary_range"] == test_job.salary_range
-        assert data["company_name"] == test_job.company_name
-        assert data["required_skills"] == test_job.required_skills
-        assert data["status"] == test_job.status
+        assert data["id"] == test_active_job.id
+        assert data["title"] == test_active_job.title
+        assert data["description"] == test_active_job.description
+        assert data["location"] == test_active_job.location
+        assert data["salary_range"] == test_active_job.salary_range
+        assert data["company_name"] == test_active_job.company_name
+        assert data["required_skills"] == test_active_job.required_skills
+        assert data["status"] == test_active_job.status
 
     def test_get_job_not_found(self, client):
         """Test retrieval of non-existent job"""
@@ -633,18 +680,94 @@ class TestJobDetailAPI:
 
         assert response.status_code == 404
 
+    def test_get_job_scheduled_job_no_token(self, client, test_scheduled_job):
+        response = client.get(f"{JOBS_ENDPOINT}/{test_scheduled_job.id}")
+
+        assert response.status_code == 404
+
+    def test_get_job_scheduled_job_test_company_user(self, client, test_scheduled_job, normal_user_test_company_token):
+        response = client.get(
+            f"{JOBS_ENDPOINT}/{test_scheduled_job.id}",
+            HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == test_scheduled_job.id
+        assert data["title"] == test_scheduled_job.title
+        assert data["description"] == test_scheduled_job.description
+        assert data["location"] == test_scheduled_job.location
+        assert data["salary_range"] == test_scheduled_job.salary_range
+        assert data["company_name"] == test_scheduled_job.company_name
+        assert data["required_skills"] == test_scheduled_job.required_skills
+        assert data["status"] == test_scheduled_job.status
+
+    def test_get_job_scheduled_job_superuser(self, client, test_scheduled_job, superuser_token):
+        response = client.get(
+            f"{JOBS_ENDPOINT}/{test_scheduled_job.id}",
+            HTTP_AUTHORIZATION=f"Bearer {superuser_token}"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == test_scheduled_job.id
+        assert data["title"] == test_scheduled_job.title
+        assert data["description"] == test_scheduled_job.description
+        assert data["location"] == test_scheduled_job.location
+        assert data["salary_range"] == test_scheduled_job.salary_range
+        assert data["company_name"] == test_scheduled_job.company_name
+        assert data["required_skills"] == test_scheduled_job.required_skills
+        assert data["status"] == test_scheduled_job.status
+
+    def test_get_job_expired_job_no_token(self, client, test_expired_job):
+        response = client.get(f"{JOBS_ENDPOINT}/{test_expired_job.id}")
+
+        assert response.status_code == 404
+
+    def test_get_job_expired_job_test_company_user(self, client, test_expired_job, normal_user_test_company_token):
+        response = client.get(
+            f"{JOBS_ENDPOINT}/{test_expired_job.id}",
+            HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == test_expired_job.id
+        assert data["title"] == test_expired_job.title
+        assert data["description"] == test_expired_job.description
+        assert data["location"] == test_expired_job.location
+        assert data["salary_range"] == test_expired_job.salary_range
+        assert data["company_name"] == test_expired_job.company_name
+        assert data["required_skills"] == test_expired_job.required_skills
+        assert data["status"] == test_expired_job.status
+
+    def test_get_job_expired_job_superuser(self, client, test_expired_job, superuser_token):
+        response = client.get(
+            f"{JOBS_ENDPOINT}/{test_expired_job.id}",
+            HTTP_AUTHORIZATION=f"Bearer {superuser_token}"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == test_expired_job.id
+        assert data["title"] == test_expired_job.title
+        assert data["description"] == test_expired_job.description
+        assert data["location"] == test_expired_job.location
+        assert data["salary_range"] == test_expired_job.salary_range
+        assert data["company_name"] == test_expired_job.company_name
+        assert data["required_skills"] == test_expired_job.required_skills
+        assert data["status"] == test_expired_job.status
+
     def test_get_job_invalid_id(self, client):
         """Test retrieval with invalid job ID format"""
         response = client.get(f"{JOBS_ENDPOINT}/invalid")
 
         assert response.status_code == 422  # Validation error
 
-    def test_rate_limiting(self, client, test_job):
+    def test_rate_limiting(self, client, test_active_job):
         """Test API rate limiting"""
         # Send 30 requests (exceeding the 20/second limit)
         responses = []
         for _ in range(30):
-            response = client.get(f"{JOBS_ENDPOINT}/{test_job.id}")
+            response = client.get(f"{JOBS_ENDPOINT}/{test_active_job.id}")
             responses.append(response)
 
         # Verify that at least one request was rate limited
@@ -879,9 +1002,9 @@ class TestJobUpdateAPI:
             "required_skills": test_job.required_skills
         }
 
-        # Send 20 requests (exceeding the 10/second limit)
+        # Send 30 requests (exceeding the 10/second limit)
         responses = []
-        for _ in range(20):
+        for _ in range(30):
             response = client.put(
                 f"{JOBS_ENDPOINT}/{test_job.id}",
                 data=json.dumps(payload),
