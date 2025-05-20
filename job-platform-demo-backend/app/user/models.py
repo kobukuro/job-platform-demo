@@ -6,7 +6,7 @@ from user.manager import UserManager
 
 
 class User(AbstractBaseUser, PermissionsMixin):
-    email = models.EmailField(unique=True)
+    email = models.EmailField(unique=True, db_index=True)
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='users', null=True, blank=True)
     is_superuser = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
