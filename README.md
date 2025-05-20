@@ -37,6 +37,7 @@ API docs are available at `http://localhost:8000/docs`
 7. Create a job opening on the job creation endpoint(http://localhost:8000/jobs, method: POST) with the user account.(Can only create job openings for your own company)
 8. Only the creator of a job opening or a superuser has permission to edit or delete it.
 9. The endpoints for "Retrieve a list of all job postings"(http://localhost:8000/jobs, method: GET) and "Retrieve a single job posting by ID"(http://localhost:8000/jobs/{job_id}, method: GET)  do not necessarily require a token. Without a token, users can view all active job postings. With a token, users can also see the scheduled or expired job postings that they have created. Superusers can view all job postings regardless of their status.
+10. The refresh token endpoint(http://localhost:8000/users/refresh_jwt, method: POST) can be used to obtain a new access token using the refresh token.
 ### Aspects that could be better
 1. Adopt a microservices architecture by breaking down into separate microservices including authentication service, authorization service, job opening service, and establish an API gateway for unified frontend access.
 2. Add an email verification feature to the registration process to ensure that users actually have access to the email address provided. Create an endpoint for account activation (when the user clicks the URL in the email, they will be redirected to the frontend, which will then call the account activation endpoint to activate the account).
