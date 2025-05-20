@@ -32,3 +32,8 @@ API docs are available at `http://localhost:8000/docs`
    In this system, only accounts belonging to a specific company (for example, Company A) can create job openings for that company. Therefore, we need to use a superuser account to first create the company and its domain.
 3. Create a company at the company creation endpoint(http://localhost:8000/companies, method: POST) with the superuser account.
 4. Create a company domain at the company domain creation endpoint(http://localhost:8000/companies/{company_id}/domains, method: POST) with the superuser account.
+5. Create a user in the registration endpoint(http://localhost:8000/users, method: POST) with an email domain matching the company domain that was just created.
+6. Log in at the login endpoint (http://localhost:8000/users/login, method: POST) using the user credentials to obtain the access token.
+7. Create a job opening on the job creation endpoint(http://localhost:8000/jobs, method: POST) with the user account.(Can only create job openings for your own company)
+8. Only the creator of a job opening or a superuser has permission to edit or delete it.
+9. The endpoints for "Retrieve a list of all job postings" and "Retrieve a single job posting by ID" do not necessarily require a token. Without a token, users can view all active job postings. With a token, users can also see the scheduled or expired job postings that they have created. Superusers can view all job postings regardless of their status.
