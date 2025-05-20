@@ -4,6 +4,7 @@ from user.models import User
 
 USER_ENDPOINT = "/users"
 LOGIN_ENDPOINT = "/users/login"
+REFRESH_ENDPOINT = "/users/refresh_jwt"
 
 
 @pytest.mark.django_db
@@ -255,3 +256,93 @@ class TestUserLoginAPI:
         test_user.refresh_from_db()
         assert test_user.last_login is not None
         assert test_user.last_login != initial_last_login
+
+
+@pytest.mark.django_db
+class TestTokenRefreshAPI:
+    def test_refresh_token_successful(self, client):
+        """Test successful token refresh"""
+        # First create and login a user to get initial tokens
+        User.objects.create_user(
+            email="test@example.com",
+            password="securePassword123"
+        )
+
+        login_payload = {
+            "email": "test@example.com",
+            "password": "securePassword123"
+        }
+
+        login_response = client.post(
+            LOGIN_ENDPOINT,
+            data=login_payload,
+            content_type="application/json"
+        )
+
+        refresh_token = login_response.json()["refresh_token"]
+
+        # Try to refresh the token
+        refresh_payload = {
+            "refresh_token": refresh_token
+        }
+
+        response = client.post(
+            REFRESH_ENDPOINT,
+            data=refresh_payload,
+            content_type="application/json"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "access_token" in data
+        assert isinstance(data["access_token"], str)
+
+    def test_refresh_token_invalid_token(self, client):
+        """Test refresh with invalid token"""
+        refresh_payload = {
+            "refresh_token": "invalid_token"
+        }
+
+        response = client.post(
+            REFRESH_ENDPOINT,
+            data=refresh_payload,
+            content_type="application/json"
+        )
+
+        assert response.status_code == 401
+
+    def test_refresh_token_missing_token(self, client):
+        """Test refresh request with missing token"""
+        refresh_payload = {}
+
+        response = client.post(
+            REFRESH_ENDPOINT,
+            data=refresh_payload,
+            content_type="application/json"
+        )
+
+        assert response.status_code == 422
+
+    def test_refresh_token_empty_token(self, client):
+        """Test refresh with empty token"""
+        refresh_payload = {
+            "refresh_token": ""
+        }
+
+        response = client.post(
+            REFRESH_ENDPOINT,
+            data=refresh_payload,
+            content_type="application/json"
+        )
+
+        assert response.status_code == 401
+
+    def test_refresh_token_malformed_json(self, client):
+        """Test refresh with malformed JSON"""
+        response = client.post(
+            REFRESH_ENDPOINT,
+            data="invalid json",
+            content_type="application/json"
+        )
+
+        assert response.status_code == 400
