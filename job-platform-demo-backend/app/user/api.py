@@ -26,6 +26,7 @@ def register_user(request, payload: UserRegistrationRequest) -> Response:
         Raises:
             HttpError:
                 - 409: When user with provided email already exists
+                - 422: When validation fails
                 - 500: For any other unexpected errors
     """
     try:
@@ -56,6 +57,7 @@ def login_user(request, payload: UserLoginRequest) -> Response:
     Raises:
         HttpError:
             - 401: When credentials are invalid
+            - 422: When validation fails
             - 500: For any other unexpected errors
     """
     try:

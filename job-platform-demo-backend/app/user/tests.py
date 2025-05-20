@@ -17,7 +17,7 @@ class TestUserRegistrationAPI:
 
         payload = {
             "email": "test@example.com",
-            "password": "securePassword123"
+            "password": "!securePassword123"
         }
 
         response = client.post(
@@ -35,7 +35,7 @@ class TestUserRegistrationAPI:
         """Test user registration with unknown domain"""
         payload = {
             "email": "test@unknown-domain.com",
-            "password": "securePassword123"
+            "password": "!securePassword123"
         }
 
         response = client.post(
@@ -49,11 +49,76 @@ class TestUserRegistrationAPI:
         assert data["email"] == payload["email"]
         assert data["company_id"] is None
 
+    def test_register_user_password_too_short(self, client):
+        """Test password with less than 8 characters"""
+        payload = {
+            "email": "test@example.com",
+            "password": "Ab1$"  # Only 4 characters
+        }
+        response = client.post(
+            USER_ENDPOINT,
+            data=payload,
+            content_type="application/json"
+        )
+        assert response.status_code == 422
+
+    def test_register_user_password_no_uppercase(self, client):
+        """Test password without uppercase letter"""
+        payload = {
+            "email": "test@example.com",
+            "password": "password123$"
+        }
+        response = client.post(
+            USER_ENDPOINT,
+            data=payload,
+            content_type="application/json"
+        )
+        assert response.status_code == 422
+
+    def test_register_user_password_no_lowercase(self, client):
+        """Test password without lowercase letter"""
+        payload = {
+            "email": "test@example.com",
+            "password": "PASSWORD123$"
+        }
+        response = client.post(
+            USER_ENDPOINT,
+            data=payload,
+            content_type="application/json"
+        )
+        assert response.status_code == 422
+
+    def test_register_user_password_no_number(self, client):
+        """Test password without number"""
+        payload = {
+            "email": "test@example.com",
+            "password": "Password$$$"
+        }
+        response = client.post(
+            USER_ENDPOINT,
+            data=payload,
+            content_type="application/json"
+        )
+        assert response.status_code == 422
+
+    def test_register_user_password_no_special_char(self, client):
+        """Test password without special character"""
+        payload = {
+            "email": "test@example.com",
+            "password": "Password123"
+        }
+        response = client.post(
+            USER_ENDPOINT,
+            data=payload,
+            content_type="application/json"
+        )
+        assert response.status_code == 422
+
     def test_register_user_duplicate_email(self, client):
         """Test registration with duplicate email"""
         payload = {
             "email": "test@example.com",
-            "password": "securePassword123"
+            "password": "!securePassword123"
         }
 
         # First registration
@@ -76,7 +141,7 @@ class TestUserRegistrationAPI:
         """Test registration with invalid email format"""
         payload = {
             "email": "invalid-email",
-            "password": "securePassword123"
+            "password": "!securePassword123"
         }
 
         response = client.post(
@@ -135,12 +200,12 @@ class TestUserLoginAPI:
         # Create test user
         test_user = User.objects.create_user(
             email="test@example.com",
-            password="securePassword123"
+            password="!securePassword123"
         )
 
         payload = {
             "email": "test@example.com",
-            "password": "securePassword123"
+            "password": "!securePassword123"
         }
 
         response = client.post(
@@ -159,13 +224,13 @@ class TestUserLoginAPI:
         # Create test user
         test_user = User.objects.create_user(
             email="test@example.com",
-            password="correctPassword123"
+            password="!correctPassword123"
         )
 
         # Try with wrong password
         payload = {
             "email": "test@example.com",
-            "password": "wrongPassword123"
+            "password": "!wrongPassword123"
         }
 
         response = client.post(
@@ -180,7 +245,7 @@ class TestUserLoginAPI:
         """Test login with non-existent user"""
         payload = {
             "email": "nonexistent@example.com",
-            "password": "anyPassword123"
+            "password": "!anyPassword123"
         }
 
         response = client.post(
@@ -236,14 +301,14 @@ class TestUserLoginAPI:
         # Create test user
         test_user = User.objects.create_user(
             email="test@example.com",
-            password="securePassword123"
+            password="!securePassword123"
         )
 
         initial_last_login = test_user.last_login
 
         payload = {
             "email": "test@example.com",
-            "password": "securePassword123"
+            "password": "!securePassword123"
         }
 
         response = client.post(
@@ -265,12 +330,12 @@ class TestTokenRefreshAPI:
         # First create and login a user to get initial tokens
         User.objects.create_user(
             email="test@example.com",
-            password="securePassword123"
+            password="!securePassword123"
         )
 
         login_payload = {
             "email": "test@example.com",
-            "password": "securePassword123"
+            "password": "!securePassword123"
         }
 
         login_response = client.post(
