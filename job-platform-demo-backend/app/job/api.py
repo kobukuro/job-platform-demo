@@ -1,3 +1,4 @@
+from django.db.models.query_utils import Q
 from django.http.request import HttpRequest
 from django.db import transaction, IntegrityError
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
@@ -10,7 +11,7 @@ from typing import List, Optional
 from job.schemas import JobCreationRequest, JobCreationResponse, JobListResponse
 from job.models import Job
 from core.throttling.redis import RedisThrottle
-from core.authz.jwt_auth import CustomJWTAuth
+from core.authz.jwt_auth import CustomJWTAuth, OptionalJWTAuth, AnonymousUser
 from job_platform_demo_backend.exceptions import JobUpdateError
 
 router = Router(tags=['Job'])
@@ -81,7 +82,8 @@ def create_job(request: HttpRequest, payload: JobCreationRequest) -> Response:
         raise HttpError(500, "Internal server error")
 
 
-@router.get("", response=JobListResponse, throttle=[RedisThrottle("20/second")])
+@router.get("", response=JobListResponse, throttle=[RedisThrottle("20/second")],
+            auth=OptionalJWTAuth())
 def list_jobs(
         request: HttpRequest,
         title: Optional[str] = None,
@@ -105,6 +107,11 @@ def list_jobs(
 ) -> Response:
     """
     Retrieve a list of job postings with comprehensive search, filter and sorting options.
+
+    Authorization:
+    - Unauthenticated users can only view jobs with 'active' status
+    - Authenticated users can view 'active' jobs and their own created jobs
+    - Superusers can view all jobs regardless of status
 
     Args:
         request: The HTTP request object
@@ -131,6 +138,18 @@ def list_jobs(
         JobListResponse containing paginated job listings and metadata
     """
     queryset = Job.objects.all()
+
+    user = request.auth
+    if type(user) is AnonymousUser:
+        # Unauthenticated users can only see active jobs
+        queryset = queryset.filter(status='active')
+    else:
+        if not user.is_superuser:
+            # Normal authenticated users can see their own jobs and active jobs
+            queryset = queryset.filter(
+                Q(status='active') |
+                Q(created_by=user)
+            )
 
     # Search filters
     if title:

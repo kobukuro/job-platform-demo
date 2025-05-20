@@ -247,31 +247,84 @@ class TestJobCreationAPI:
 @pytest.mark.django_db
 class TestJobListAPI:
     @pytest.fixture
-    def create_test_jobs(self):
-        """Create test job listings"""
+    def create_test_jobs(self, client, normal_user_test_company):
+        """Create test jobs for listing tests"""
         today = date.today()
-        jobs = []
-
-        # Create 10 test jobs with different attributes
-        for i in range(10):
-            job = Job.objects.create(
+        for i in range(9):
+            Job.objects.create(
                 title=f"Software Engineer {i}",
                 description=f"Development position {i}",
-                location="Taipei",
+                location="Taipei, Taiwan",
                 salary_range={
                     "type": "annually",
                     "currency": "TWD",
                     "min": 800000 + (i * 100000),
                     "max": 1500000 + (i * 100000)
                 },
-                company_name=f"Tech Company {i}",
-                posting_date=today + timedelta(days=i),
-                expiration_date=today + timedelta(days=30 + i),
+                company_name=f"Test Corp",
+                posting_date=today,
+                expiration_date=today + timedelta(days=30),
                 required_skills=["Python", "Django", "React"],
-                status="active"
+                status="active",
+                created_by=normal_user_test_company,
+                last_updated_by=normal_user_test_company
             )
-            jobs.append(job)
-        return jobs
+        Job.objects.create(
+            title=f"Software Engineer 9",
+            description=f"Development position 9",
+            location="Taipei, Taiwan",
+            salary_range={
+                "type": "annually",
+                "currency": "TWD",
+                "min": 800000 + (9 * 100000),
+                "max": 1500000 + (9 * 100000)
+            },
+            company_name=f"Test Corp",
+            posting_date=today - timedelta(days=1),
+            expiration_date=today + timedelta(days=29),
+            required_skills=["Python", "Django", "React"],
+            status="active",
+            created_by=normal_user_test_company,
+            last_updated_by=normal_user_test_company
+        )
+        # scheduled job
+        Job.objects.create(
+            title=f"Software Engineer 10",
+            description=f"Development position 10",
+            location="Taipei, Taiwan",
+            salary_range={
+                "type": "annually",
+                "currency": "TWD",
+                "min": 800000,
+                "max": 1500000
+            },
+            company_name=f"Test Corp",
+            posting_date=today + timedelta(days=1),
+            expiration_date=today + timedelta(days=30),
+            required_skills=["Python", "Django", "React"],
+            status="scheduled",
+            created_by=normal_user_test_company,
+            last_updated_by=normal_user_test_company
+        )
+        # expired job
+        Job.objects.create(
+            title=f"Software Engineer 11",
+            description=f"Development position 11",
+            location="Taipei, Taiwan",
+            salary_range={
+                "type": "annually",
+                "currency": "TWD",
+                "min": 800000,
+                "max": 1500000
+            },
+            company_name=f"Test Corp",
+            posting_date=date.today() - timedelta(days=34),
+            expiration_date=date.today() - timedelta(days=4),
+            required_skills=["Python", "Django", "React"],
+            status="expired",
+            created_by=normal_user_test_company,
+            last_updated_by=normal_user_test_company
+        )
 
     def test_list_jobs_basic(self, client, create_test_jobs):
         """Test basic job listing without filters"""
@@ -317,12 +370,12 @@ class TestJobListAPI:
     def test_list_jobs_company_name_filter(self, client, create_test_jobs):
         """Test job listing with company name filter"""
         response = client.get(
-            f"{JOBS_ENDPOINT}?company_name=Company 0"
+            f"{JOBS_ENDPOINT}?company_name=Test Corp"
         )
 
         assert response.status_code == 200
         data = response.json()
-        assert data["total_count"] == 1
+        assert data["total_count"] == 10
 
     def test_list_jobs_active_status_filter(self, client, create_test_jobs):
         """Test job listing with active status filter"""
@@ -332,7 +385,7 @@ class TestJobListAPI:
         data = response.json()
         assert data["total_count"] == 10
 
-    def test_list_jobs_expired_status_filter(self, client, create_test_jobs):
+    def test_list_jobs_expired_status_filter_to_token(self, client, create_test_jobs):
         """Test job listing with expired status filter"""
         response = client.get(f"{JOBS_ENDPOINT}?status=expired")
 
@@ -340,7 +393,28 @@ class TestJobListAPI:
         data = response.json()
         assert data["total_count"] == 0
 
-    def test_list_jobs_scheduled_status_filter(self, client, create_test_jobs):
+    def test_list_jobs_expired_status_filter_with_token(self, client, create_test_jobs, normal_user_test_company_token):
+        """Test job listing with expired status filter"""
+        response = client.get(
+            f"{JOBS_ENDPOINT}?status=expired",
+            HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_count"] == 1
+
+    def test_list_jobs_expired_status_filter_superuser(self, client, create_test_jobs, superuser_token):
+        """Test job listing with expired status filter"""
+        response = client.get(
+            f"{JOBS_ENDPOINT}?status=expired",
+            HTTP_AUTHORIZATION=f"Bearer {superuser_token}"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_count"] == 1
+
+    def test_list_jobs_scheduled_status_filter_no_token(self, client, create_test_jobs):
         """Test job listing with scheduled status filter"""
         response = client.get(f"{JOBS_ENDPOINT}?status=scheduled")
 
@@ -348,10 +422,33 @@ class TestJobListAPI:
         data = response.json()
         assert data["total_count"] == 0
 
+    def test_list_jobs_scheduled_status_filter_with_token(self, client, create_test_jobs,
+                                                          normal_user_test_company_token):
+        """Test job listing with scheduled status filter"""
+        response = client.get(
+            f"{JOBS_ENDPOINT}?status=scheduled",
+            HTTP_AUTHORIZATION=f"Bearer {normal_user_test_company_token}"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_count"] == 1
+
+    def test_list_jobs_scheduled_status_filter_superuser(self, client, create_test_jobs, superuser_token):
+        """Test job listing with scheduled status filter"""
+        response = client.get(
+            f"{JOBS_ENDPOINT}?status=scheduled",
+            HTTP_AUTHORIZATION=f"Bearer {
+            superuser_token}"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_count"] == 1
+
     def test_list_jobs_existed_location_filter(self, client, create_test_jobs):
         """Test job listing with existed location filter"""
         response = client.get(
-            f"{JOBS_ENDPOINT}?location=Taipei"
+            f"{JOBS_ENDPOINT}?location=Taipei, Taiwan"
         )
 
         assert response.status_code == 200
@@ -413,7 +510,7 @@ class TestJobListAPI:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["total_count"] == 2
+        assert data["total_count"] == 9
 
     def test_list_jobs_expiration_date_filters(self, client, create_test_jobs):
         """Test job listing with expiration date filters"""
@@ -424,7 +521,7 @@ class TestJobListAPI:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["total_count"] == 2
+        assert data["total_count"] == 9
 
     def test_list_jobs_ordering_posting_date(self, client, create_test_jobs):
         """Test job listing ordering"""
@@ -501,7 +598,7 @@ class TestJobDetailAPI:
         return Job.objects.create(
             title="Software Engineer",
             description="Python developer position",
-            location="Taipei",
+            location="Taipei, Taiwan",
             salary_range={
                 "type": "annually",
                 "currency": "TWD",
