@@ -27,11 +27,8 @@ API docs are available at `http://localhost:8000/docs`
     ```bash
     docker compose run --rm app sh -c "python manage.py createsuperuser"
     ```
-2. Log in at the login endpoint using the superuser credentials to obtain the access token.
-![login endpoint](./images/login-endpoint.png)
+2. Log in at the login endpoint (http://localhost:8000/users/login, method: POST) using superuser credentials to obtain the access token.
    
    In this system, only accounts belonging to a specific company (for example, Company A) can create job openings for that company. Therefore, we need to use a superuser account to first create the company and its domain.
-3. Create a company at the company creation endpoint with the superuser account.
-![company creation endpoint](./images/company-creation-endpoint.png)
-4. Create a company domain at the company domain creation endpoint with the superuser account.
-![company domain creation endpoint](./images/company-domain-creation-endpoint.png)
+3. Create a company at the company creation endpoint(http://localhost:8000/companies/{company_id}/domains, method: POST) with the superuser account.
+4. Create a company domain at the company domain creation endpoint( ) with the superuser account.
