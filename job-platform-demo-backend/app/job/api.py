@@ -223,10 +223,16 @@ def list_jobs(
     )
 
 
-@router.get("/{job_id}", response=JobCreationResponse, throttle=[RedisThrottle("20/second")])
+@router.get("/{job_id}", response=JobCreationResponse, throttle=[RedisThrottle("20/second")],
+            auth=OptionalJWTAuth())
 def get_job(request: HttpRequest, job_id: int) -> Response:
     """
     Retrieve a single job posting by its ID.
+
+    Authorization:
+    - Unauthenticated users can only view jobs with 'active' status
+    - Authenticated users can view 'active' jobs and their own created jobs
+    - Superusers can view all jobs regardless of status
 
     Args:
         request: The HTTP request object
@@ -237,12 +243,26 @@ def get_job(request: HttpRequest, job_id: int) -> Response:
 
     Raises:
         HttpError:
-            - 404 if job posting is not found
+            - 404 if job posting is not found or user doesn't have permission to view it
             - 500 for server-side errors
     """
     try:
         job = Job.objects.get(id=job_id)
+        # Permission check
+        user = request.auth
+        if type(user) is AnonymousUser:
+            # Unauthenticated users can only view active jobs
+            if job.status != 'active':
+                raise HttpError(404, f"Job posting with ID {job_id} not found")
+        else:
+            if not user.is_superuser:
+                # Regular authenticated users can view active jobs and their own jobs
+                if job.status != 'active' and job.created_by != user:
+                    raise HttpError(404, f"Job posting with ID {job_id} not found")
         return Response(JobCreationResponse.from_orm(job).dict())
+
+    except HttpError:
+        raise
 
     except Job.DoesNotExist:
         raise HttpError(404, f"Job posting with ID {job_id} not found")
