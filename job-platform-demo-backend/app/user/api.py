@@ -5,7 +5,8 @@ from ninja.errors import HttpError
 from ninja.responses import Response
 from ninja_jwt.tokens import RefreshToken
 from user.models import User
-from user.schemas import UserRegistrationRequest, UserRegistrationResponse, UserLoginRequest, UserLoginResponse
+from user.schemas import UserRegistrationRequest, UserRegistrationResponse, UserLoginRequest, UserLoginResponse, \
+    TokenRefreshRequest, TokenRefreshResponse
 
 router = Router(tags=['User'])
 
@@ -76,3 +77,30 @@ def login_user(request, payload: UserLoginRequest) -> Response:
         raise HttpError(401, "Invalid credentials")
     except Exception as e:
         raise HttpError(500, str(e))
+
+
+@router.post("/refresh_jwt", response=TokenRefreshResponse)
+def refresh_token(request, payload: TokenRefreshRequest) -> Response:
+    """
+    Refresh token API endpoint
+
+    Args:
+        request: HTTP request object
+        payload (TokenRefreshRequest): Request data containing refresh token
+
+    Returns:
+        Response: Returns new access token
+
+    Raises:
+        HttpError:
+            - 401: When refresh token is invalid
+            - 500: For any other unexpected errors
+    """
+    try:
+        refresh = RefreshToken(payload.refresh_token)
+        return Response({
+            "access_token": str(refresh.access_token)
+        }, status=200)
+
+    except Exception as e:
+        raise HttpError(401, "Invalid refresh token")

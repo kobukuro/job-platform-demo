@@ -32,3 +32,11 @@ class UserLoginRequest(Schema):
 class UserLoginResponse(Schema):
     access_token: str
     refresh_token: str
+
+
+class TokenRefreshRequest(Schema):
+    refresh_token: str
+
+
+class TokenRefreshResponse(Schema):
+    access_token: str
